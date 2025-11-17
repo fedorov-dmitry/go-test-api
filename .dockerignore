@@ -1,0 +1,27 @@
+# VCS
+.git
+.gitignore
+
+# Dependencies / build cache
+bin
+vendor
+node_modules
+
+# Editors / OS
+.DS_Store
+*.swp
+*.swo
+.vscode
+.idea
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+
+# Go build artifacts
+*.out
+*.test
+coverage*
+dist
+
+

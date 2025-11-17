@@ -1,0 +1,41 @@
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.code-workspace
+.fleet/
+
+# Go build artifacts
+bin/
+build/
+dist/
+out/
+tmp/
+
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+
+# Coverage
+*.out
+coverage.*
+coverage/
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Vendor dependencies
+vendor/
+
+

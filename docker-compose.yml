@@ -1,0 +1,54 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: go-test-api-postgres
+    environment:
+      POSTGRES_DB: currencies
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d currencies"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: go-test-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      WAIT_FOR_DB: "true"
+    ports:
+      - "8080:8080"
+    command:
+      - /app/test-api-go
+      - -connection-string
+      - postgresql://postgres:password@postgres:5432/currencies
+      - -api-base-url
+      - https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api
+      - -api-key
+      - your-api-key
+      - -currencies
+      - EUR,USD,RUB,JPY
+      - -days-look-back
+      - "1"
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+
+
