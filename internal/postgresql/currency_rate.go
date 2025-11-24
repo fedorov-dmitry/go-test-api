@@ -17,7 +17,7 @@ func NewCurrencyStorage(pgPool *pgxpool.Pool) *CurrencyStorage {
 	return &CurrencyStorage{pgPool: pgPool}
 }
 
-func (c *CurrencyStorage) Get(ctx context.Context, baseCurrency string, currency string, date time.Time) (internal.CurrencyRate, error) {
+func (c *CurrencyStorage) Get(ctx context.Context, baseCurrency internal.Currency, currency internal.Currency, date time.Time) (internal.CurrencyRate, error) {
 	sql := `
 SELECT date, base, currency, rate FROM app.currency_rates
 WHERE base = $1
@@ -28,7 +28,6 @@ WHERE base = $1
 	rates := internal.CurrencyRate{}
 
 	err := res.Scan(&rates.Date, &rates.Base, &rates.Currency, &rates.Rate)
-
 	if err != nil {
 		return internal.CurrencyRate{}, fmt.Errorf("failed to get currency rates for %s-%s: %w", baseCurrency, currency, err)
 	}
@@ -36,29 +35,35 @@ WHERE base = $1
 	return rates, nil
 }
 
-func (c *CurrencyStorage) GetMany(ctx context.Context, baseCurrency string, date time.Time) ([]internal.CurrencyRate, error) {
+func (c *CurrencyStorage) GetMany(ctx context.Context, baseCurrency internal.Currency, date time.Time) ([]internal.CurrencyRate, error) {
 	sql := `
 SELECT date, base, currency, rate FROM app.currency_rates
 WHERE base = $1
 AND date = $2`
 
 	rows, err := c.pgPool.Query(ctx, sql, baseCurrency, date.Format("2006-01-02"))
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch currency rates for %s: %w", baseCurrency, err)
 	}
 
 	rates := make([]internal.CurrencyRate, 0)
 
+	defer rows.Close()
+
 	for rows.Next() {
 		rate := internal.CurrencyRate{}
-		err = rows.Scan(&rate.Date, &rate.Base, &rate.Currency, &rate.Rate)
 
+		err = rows.Scan(&rate.Date, &rate.Base, &rate.Currency, &rate.Rate)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch currency rates for %s: %w", baseCurrency, err)
 		}
 
 		rates = append(rates, rate)
+	}
+
+	err = rows.Err()
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch currency rates for %s: %w", baseCurrency, err)
 	}
 
 	return rates, nil
@@ -73,7 +78,6 @@ DO UPDATE SET
    rate = EXCLUDED.rate;`
 
 	_, err := c.pgPool.Exec(ctx, sql, rate.Date, rate.Base, rate.Currency, rate.Rate)
-
 	if err != nil {
 		return fmt.Errorf("failed to save currency rate for %s-%s: %w", rate.Base, rate.Currency, err)
 	}

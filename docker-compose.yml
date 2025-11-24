@@ -32,20 +32,13 @@ services:
       DB_HOST: postgres
       DB_PORT: 5432
       WAIT_FOR_DB: "true"
+      APP_PORT: 8088
+      DAYS_LOOK_BACK: 4
+      CONNECTION_STRING: postgresql://postgres:password@postgres:5432/currencies
+      API_BASE_URL: https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api
+      CURRENCIES: EUR,USD,RUB,JPY
     ports:
-      - "8080:8080"
-    command:
-      - /app/test-api-go
-      - -connection-string
-      - postgresql://postgres:password@postgres:5432/currencies
-      - -api-base-url
-      - https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api
-      - -api-key
-      - your-api-key
-      - -currencies
-      - EUR,USD,RUB,JPY
-      - -days-look-back
-      - "1"
+      - "8088:8088"
     restart: unless-stopped
 
 volumes:

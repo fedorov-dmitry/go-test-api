@@ -5,58 +5,60 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
+	"os"
 	"time"
 
 	"github.com/fedorov-dmitry/go-test-api/internal"
-	"github.com/fedorov-dmitry/go-test-api/internal/service"
 )
 
 type CurrencyRepository interface {
-	Get(ctx context.Context, baseCurrency string, currency string, date time.Time) (internal.CurrencyRate, error)
-	GetMany(ctx context.Context, baseCurrency string, date time.Time) ([]internal.CurrencyRate, error)
-	Create(ctx context.Context, date time.Time, baseCurrency string, currency string, rate float64) (internal.CurrencyRate, error)
+	Get(ctx context.Context, baseCurrency internal.Currency, currency internal.Currency, date time.Time) (internal.CurrencyRate, error)
+	GetMany(ctx context.Context, baseCurrency internal.Currency, date time.Time) ([]internal.CurrencyRate, error)
+	Create(ctx context.Context, date time.Time, baseCurrency internal.Currency, currency internal.Currency, rate float64) (internal.CurrencyRate, error)
 }
 
 type Server struct {
-	repo    CurrencyRepository
-	service service.CurrencyService
+	repo        CurrencyRepository
+	service     internal.CurrencyService
+	mainContext context.Context
 }
 
-func NewServer(repo CurrencyRepository, service service.CurrencyService) *Server {
-	return &Server{repo: repo, service: service}
+func NewServer(repo CurrencyRepository, service internal.CurrencyService, mainContext context.Context) *Server {
+	return &Server{repo: repo, service: service, mainContext: mainContext}
 }
 
 func (s *Server) Start() error {
-	http.HandleFunc("/rates/historical", func(w http.ResponseWriter, r *http.Request) {
-		ctx := context.Background()
+	err := http.ListenAndServe(":"+os.Getenv("APP_PORT"), s.getHandlers()) // handle?
+	if err != nil {
+		return fmt.Errorf("failed to start server: %w", err)
+	}
 
-		base := strings.ToLower(r.URL.Query().Get("base"))
+	return nil
+}
 
+func (s *Server) getHandlers() *http.ServeMux {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/rates/historical", func(w http.ResponseWriter, r *http.Request) {
+		base := internal.NewCurrency(r.URL.Query().Get("base"))
 		if base == "" {
 			http.Error(w, "missing base query parameter", http.StatusBadRequest)
 			return
 		}
 
 		dateStr := r.URL.Query().Get("date")
-
-		var date time.Time
-		var err error
-
 		if dateStr == "" {
 			http.Error(w, "missing `date` query parameter", http.StatusBadRequest)
 			return
-		} else {
-			date, err = time.Parse("2006-01-02", dateStr)
-
-			if err != nil {
-				http.Error(w, "invalid date format, expected YYYY-MM-DD", http.StatusBadRequest)
-				return
-			}
 		}
 
-		rates, err := s.repo.GetMany(ctx, base, date)
+		date, err := time.Parse("2006-01-02", dateStr)
+		if err != nil {
+			http.Error(w, "invalid date format, expected YYYY-MM-DD", http.StatusBadRequest)
+			return
+		}
 
+		rates, err := s.repo.GetMany(s.mainContext, internal.Currency(base), date)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -67,24 +69,22 @@ func (s *Server) Start() error {
 		_ = json.NewEncoder(w).Encode(rates) // handle?
 	})
 
-	http.HandleFunc("/rates/latest", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/rates/latest", func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.Background()
 
-		base := strings.ToLower(r.URL.Query().Get("base"))
-		currency := strings.ToLower(r.URL.Query().Get("currency"))
-
+		base := internal.NewCurrency(r.URL.Query().Get("base"))
 		if base == "" {
 			http.Error(w, "missing `base` query parameter", http.StatusBadRequest)
 			return
 		}
 
+		currency := internal.NewCurrency(r.URL.Query().Get("currency"))
 		if currency == "" {
 			http.Error(w, "missing `currency` query parameter", http.StatusBadRequest)
 			return
 		}
 
 		rates, err := s.repo.Get(ctx, base, currency, time.Now())
-
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -95,11 +95,5 @@ func (s *Server) Start() error {
 		_ = json.NewEncoder(w).Encode(rates) // handle?
 	})
 
-	err := http.ListenAndServe(":8080", nil) // handle?
-
-	if err != nil {
-		return fmt.Errorf("failed to start server: %w", err)
-	}
-
-	return nil
+	return mux
 }

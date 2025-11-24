@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # --- Build stage ---
-FROM golang:1.22-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 WORKDIR /src
 ENV CGO_ENABLED=0 \
@@ -26,12 +26,21 @@ FROM alpine:3.20
 RUN apk add --no-cache ca-certificates tzdata netcat-openbsd
 WORKDIR /app
 
+ENV APP_PORT=8088
+ENV DAYS_LOOK_BACK=1
+ENV CONNECTION_STRING=postgresql://postgres:password@postgres:5432/currencies
+ENV API_BASE_URL=https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api
+ENV CURRENCIES=EUR,USD,RUB,JPY
+# Defaults for entrypoint database wait helper
+ENV DB_HOST=postgres
+ENV DB_PORT=5432
+ENV WAIT_FOR_DB=true
+
 COPY --from=builder /app/test-api-go /app/test-api-go
 COPY scripts/docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 
-EXPOSE 8080
+EXPOSE 8088
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["/app/test-api-go"]
-
 
