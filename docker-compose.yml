@@ -37,6 +37,7 @@ services:
       CONNECTION_STRING: postgresql://postgres:password@postgres:5432/currencies
       API_BASE_URL: https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api
       CURRENCIES: EUR,USD,RUB,JPY
+      API_KEY: 12345
     ports:
       - "8088:8088"
     restart: unless-stopped

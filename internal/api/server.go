@@ -39,61 +39,74 @@ func (s *Server) Start() error {
 func (s *Server) getHandlers() *http.ServeMux {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/rates/historical", func(w http.ResponseWriter, r *http.Request) {
-		base := internal.NewCurrency(r.URL.Query().Get("base"))
-		if base == "" {
-			http.Error(w, "missing base query parameter", http.StatusBadRequest)
-			return
-		}
-
-		dateStr := r.URL.Query().Get("date")
-		if dateStr == "" {
-			http.Error(w, "missing `date` query parameter", http.StatusBadRequest)
-			return
-		}
-
-		date, err := time.Parse("2006-01-02", dateStr)
-		if err != nil {
-			http.Error(w, "invalid date format, expected YYYY-MM-DD", http.StatusBadRequest)
-			return
-		}
-
-		rates, err := s.repo.GetMany(s.mainContext, internal.Currency(base), date)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-
-		_ = json.NewEncoder(w).Encode(rates) // handle?
-	})
-
-	mux.HandleFunc("/rates/latest", func(w http.ResponseWriter, r *http.Request) {
-		ctx := context.Background()
-
-		base := internal.NewCurrency(r.URL.Query().Get("base"))
-		if base == "" {
-			http.Error(w, "missing `base` query parameter", http.StatusBadRequest)
-			return
-		}
-
-		currency := internal.NewCurrency(r.URL.Query().Get("currency"))
-		if currency == "" {
-			http.Error(w, "missing `currency` query parameter", http.StatusBadRequest)
-			return
-		}
-
-		rates, err := s.repo.Get(ctx, base, currency, time.Now())
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-
-		_ = json.NewEncoder(w).Encode(rates) // handle?
-	})
+	mux.Handle("/rates/historical", authorizationMiddleware(http.HandlerFunc(s.historicalRatesHandler)))
+	mux.Handle("/rates/latest", authorizationMiddleware(http.HandlerFunc(s.currentRatesHandler)))
 
 	return mux
+}
+
+func authorizationMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		apiKey := r.Header.Get("Authorization")
+		if apiKey != os.Getenv("API_KEY") {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (s *Server) currentRatesHandler(w http.ResponseWriter, r *http.Request) {
+	base := internal.NewCurrency(r.URL.Query().Get("base"))
+	if base == "" {
+		http.Error(w, "missing `base` query parameter", http.StatusBadRequest)
+		return
+	}
+
+	currency := internal.NewCurrency(r.URL.Query().Get("currency"))
+	if currency == "" {
+		http.Error(w, "missing `currency` query parameter", http.StatusBadRequest)
+		return
+	}
+
+	rates, err := s.repo.Get(s.mainContext, base, currency, time.Now())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	_ = json.NewEncoder(w).Encode(rates) // handle?
+}
+
+func (s *Server) historicalRatesHandler(w http.ResponseWriter, r *http.Request) {
+	base := internal.NewCurrency(r.URL.Query().Get("base"))
+	if base == "" {
+		http.Error(w, "missing base query parameter", http.StatusBadRequest)
+		return
+	}
+
+	dateStr := r.URL.Query().Get("date")
+	if dateStr == "" {
+		http.Error(w, "missing `date` query parameter", http.StatusBadRequest)
+		return
+	}
+
+	date, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		http.Error(w, "invalid date format, expected YYYY-MM-DD", http.StatusBadRequest)
+		return
+	}
+
+	rates, err := s.repo.GetMany(s.mainContext, internal.Currency(base), date)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	_ = json.NewEncoder(w).Encode(rates) // handle?
 }
