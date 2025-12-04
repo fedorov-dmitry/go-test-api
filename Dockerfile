@@ -31,6 +31,7 @@ ENV DAYS_LOOK_BACK=1
 ENV CONNECTION_STRING=postgresql://postgres:password@postgres:5432/currencies
 ENV API_BASE_URL=https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api
 ENV CURRENCIES=EUR,USD,RUB,JPY
+ENV JOB_CRON="* * * * *"
 # Defaults for entrypoint database wait helper
 ENV DB_HOST=postgres
 ENV DB_PORT=5432

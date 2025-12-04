@@ -7,4 +7,5 @@ type Config struct {
 	Currencies         string
 	DaysLookBack       int
 	AppPort            int
+	ApiKey             string
 }

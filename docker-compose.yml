@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18.1-alpine
     container_name: go-test-api-postgres
     environment:
       POSTGRES_DB: currencies
@@ -38,6 +38,7 @@ services:
       API_BASE_URL: https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api
       CURRENCIES: EUR,USD,RUB,JPY
       API_KEY: 12345
+      JOB_CRON: "* * * * *"
     ports:
       - "8088:8088"
     restart: unless-stopped

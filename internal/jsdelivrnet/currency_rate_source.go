@@ -5,20 +5,21 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/fedorov-dmitry/go-test-api/internal"
 )
 
-type CurrencyRateSource struct{}
+type CurrencyRateSource struct {
+	baseURL string
+}
 
-func NewCurrencyRateSource() *CurrencyRateSource {
-	return &CurrencyRateSource{}
+func NewCurrencyRateSource(baseURL string) *CurrencyRateSource {
+	return &CurrencyRateSource{baseURL: baseURL}
 }
 
 func (s *CurrencyRateSource) Get(baseCurrency internal.Currency, currencies []internal.Currency, date time.Time) ([]internal.CurrencyRate, error) {
-	url := fmt.Sprintf("%s@%s/v1/currencies/%s.json", os.Getenv("API_BASE_URL"), date.Format("2006-01-02"), baseCurrency)
+	url := fmt.Sprintf("%s@%s/v1/currencies/%s.json", s.baseURL, date.Format("2006-01-02"), baseCurrency)
 
 	resp, err := http.Get(url)
 	if err != nil {

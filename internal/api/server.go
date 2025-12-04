@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/fedorov-dmitry/go-test-api/internal"
+	"github.com/fedorov-dmitry/go-test-api/internal/middleware"
 )
 
 type CurrencyRepository interface {
@@ -19,16 +19,19 @@ type CurrencyRepository interface {
 
 type Server struct {
 	repo        CurrencyRepository
-	service     internal.CurrencyService
+	service     internal.CurrencySynchronizer
 	mainContext context.Context
+	logCh       chan<- middleware.RequestLog
+	port        int
+	apiKey      string
 }
 
-func NewServer(repo CurrencyRepository, service internal.CurrencyService, mainContext context.Context) *Server {
-	return &Server{repo: repo, service: service, mainContext: mainContext}
+func NewServer(repo CurrencyRepository, service internal.CurrencySynchronizer, mainContext context.Context, logCh chan<- middleware.RequestLog, port int, apiKey string) *Server {
+	return &Server{repo: repo, service: service, mainContext: mainContext, logCh: logCh, port: port, apiKey: apiKey}
 }
 
 func (s *Server) Start() error {
-	err := http.ListenAndServe(":"+os.Getenv("APP_PORT"), s.getHandlers()) // handle?
+	err := http.ListenAndServe(fmt.Sprintf(":%d", s.port), s.getHandlers()) // handle?
 	if err != nil {
 		return fmt.Errorf("failed to start server: %w", err)
 	}
@@ -39,22 +42,17 @@ func (s *Server) Start() error {
 func (s *Server) getHandlers() *http.ServeMux {
 	mux := http.NewServeMux()
 
-	mux.Handle("/rates/historical", authorizationMiddleware(http.HandlerFunc(s.historicalRatesHandler)))
-	mux.Handle("/rates/latest", authorizationMiddleware(http.HandlerFunc(s.currentRatesHandler)))
+	wrap := func(h http.HandlerFunc) http.Handler {
+		return middleware.RequestLoggingMiddleware(
+			s.logCh,
+			middleware.AuthorizationMiddleware(s.apiKey, h),
+		)
+	}
+
+	mux.Handle("/rates/historical", wrap(s.historicalRatesHandler))
+	mux.Handle("/rates/latest", wrap(s.currentRatesHandler))
 
 	return mux
-}
-
-func authorizationMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		apiKey := r.Header.Get("Authorization")
-		if apiKey != os.Getenv("API_KEY") {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
 }
 
 func (s *Server) currentRatesHandler(w http.ResponseWriter, r *http.Request) {
